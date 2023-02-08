@@ -1,0 +1,2 @@
+python walk.py --network=./shape_out/grad/weight2/00000-loc-stylegan2-batch128-noaug/network-snapshot-004096.pkl \
+--outdir=./walk_out --indir=/home/liyi/data/faceverse_data/train/uv/coarse/loc --gtdir=/home/liyi/data/faceverse_data/train/uv/fine/loc
