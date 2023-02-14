@@ -199,7 +199,7 @@ class MyVisualizer:
                         img_path = os.path.join(save_path, '%s.png' % name)
                     else:
                         img_path = os.path.join(save_path, '%s_%03d.png' % (label, i + count))
-                    util.save_image(image_numpy, img_path)
+                    #util.save_image(image_numpy, img_path)
 
 
     def plot_current_losses(self, total_iters, losses, dataset='train'):

@@ -21,8 +21,8 @@ def compute_fid(opts, max_real, num_gen):
     # Direct TorchScript translation of http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz
     detector_url = 'https://nvlabs-fi-cdn.nvidia.com/stylegan2-ada-pytorch/pretrained/metrics/inception-2015-12-05.pt'
     detector_kwargs = dict(return_features=True) # Return raw features before the softmax layer.
-    name = ["im", "grad"]
-    res = {"im":float('nan'), "grad":float('nan')}
+    name = ["deform", "im"]
+    res = {"deform":float('nan'), "im":float('nan')}
 
     real_stats = metric_utils.compute_feature_stats_for_dataset(
         opts=opts, detector_url=detector_url, detector_kwargs=detector_kwargs,

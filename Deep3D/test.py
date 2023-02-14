@@ -94,7 +94,7 @@ def main(rank, opt):
         visualizer.display_current_results(visuals, 0, opt.epoch, dataset=name, 
             save_results=True, count=i, name=img_name, add_image=False)
 
-        #model.save_mesh(os.path.join(visualizer.img_dir, name, 'epoch_%s_%06d'%(opt.epoch, 0),img_name+'.obj')) # save reconstruction meshes
+        model.save_mesh(os.path.join(visualizer.img_dir, name, 'epoch_%s_%06d'%(opt.epoch, 0),img_name+'.obj')) # save reconstruction meshes
         if not os.path.exists(os.path.join(visualizer.img_dir, name, 'epoch_%s_%06d'%(opt.epoch, 0), "tex")):
             os.mkdir(os.path.join(visualizer.img_dir, name, 'epoch_%s_%06d'%(opt.epoch, 0), "tex"))
         if not os.path.exists(os.path.join(visualizer.img_dir, name, 'epoch_%s_%06d'%(opt.epoch, 0), "shape")):

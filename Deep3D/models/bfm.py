@@ -111,11 +111,11 @@ class ParametricFaceModel:
         batch_size = id_coeff.shape[0]
         id_part = torch.einsum('ij,aj->ai', self.id_base, id_coeff)
         exp_part = torch.einsum('ij,aj->ai', self.exp_base, exp_coeff)
-        face_shape = id_part + exp_part + self.mean_shape.reshape([1, -1])
+        face_shape = id_part + 0*exp_part + self.mean_shape.reshape([1, -1])
         return face_shape.reshape([batch_size, -1, 3])
     
 
-    def compute_texture(self, tex_coeff, face_proj, im, normalize=True):
+    def compute_texture(self, tex_coeff, normalize=True):
         """
         Return:
             face_texture     -- torch.tensor, size (B, N, 3), in RGB order, range (0, 1.)
@@ -126,20 +126,12 @@ class ParametricFaceModel:
         batch_size = tex_coeff.shape[0]
         face_texture = torch.einsum('ij,aj->ai', self.tex_base, tex_coeff) + self.mean_tex
         face_texture = face_texture.reshape([batch_size, -1, 3])
-        # if normalize:
-        #     face_texture = face_texture / 255.
+        if normalize:
+            face_texture = face_texture / 255.
         
-        im_texture = None
-        if self.tex_from_im:
-            B, N, _ = face_proj.shape
-            _, _, H, W = im.shape
-            face_proj[..., 1] = H - 1 - face_proj[..., 1]
-            face_proj[:, :, 0] = 2 * (face_proj[:, :, 0] / W) - 1
-            face_proj[:, :, 1] = 2 * (face_proj[:, :, 1] / H) - 1
-            im_texture = \
-                F.grid_sample(im, face_proj.unsqueeze(2).to(face_texture.device), mode="nearest").squeeze(3).permute(0,2,1)
 
-        return face_texture, im_texture
+
+        return face_texture
 
 
     def compute_norm(self, face_shape):
@@ -323,19 +315,17 @@ class ParametricFaceModel:
 
 
 
-
-        face_shape_transformed = self.transform(face_shape, rotation, coef_dict['trans'])
-        face_vertex = self.to_camera(face_shape_transformed)
+        #face_shape_transformed = self.transform(face_shape, rotation, coef_dict['trans'])
+        #face_vertex = self.to_camera(face_shape_transformed)
+        face_vertex = self.to_camera(face_shape)
         
         face_proj = self.to_image(face_vertex)
         landmark = self.get_landmarks(face_proj)
 
-        pred_texture, im_texture = self.compute_texture(coef_dict['tex'], face_proj, im)
-        pred_texture /= 255
+        pred_texture = self.compute_texture(coef_dict['tex'])
         face_norm = self.compute_norm(face_shape)
         face_norm_roted = face_norm @ rotation
         pred_color = self.compute_color(pred_texture, face_norm_roted, coef_dict['gamma'])
-        im_color = self.compute_color(im_texture, face_norm_roted, coef_dict['gamma']) if im_texture is not None else None
         
 
-        return face_vertex, pred_texture, im_texture, pred_color, im_color, landmark, face_norm_roted, coef_dict['gamma'], face_shape
+        return face_vertex, pred_texture, pred_color, landmark

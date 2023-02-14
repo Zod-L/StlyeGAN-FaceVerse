@@ -19,7 +19,7 @@ import PIL.Image
 import torch
 from tqdm import tqdm
 from torchvision.utils import save_image
-
+import cv2
 import legacy
 
 #----------------------------------------------------------------------------
@@ -42,7 +42,7 @@ def num_range(s: str) -> List[int]:
 @click.option('--seed', type=num_range, help='List of random seeds')
 @click.option('--trunc', 'truncation_psi', type=float, help='Truncation psi', default=1, show_default=True)
 @click.option('--class', 'class_idx', type=int, help='Class label (unconditional if not specified)')
-@click.option('--noise-mode', help='Noise mode', type=click.Choice(['const', 'random', 'none']), default='const', show_default=True)
+@click.option('--noise-mode', help='Noise mode', type=click.Choice(['const', 'random', 'none']), default='none', show_default=True)
 @click.option('--projected-w', help='Projection result file', type=str, metavar='FILE')
 @click.option('--outdir', help='Where to save the output images', type=str, required=True, metavar='DIR')
 @click.option('--indir', help='Input image UV dir', type=str, required=True, metavar='DIR')
@@ -83,7 +83,7 @@ def generate_images(
     """
 
     print('Loading networks from "%s"...' % network_pkl)
-    device = torch.device('cuda', 1)
+    device = torch.device('cuda', 0)
     with dnnlib.util.open_url(network_pkl) as f:
         G = legacy.load_network_pkl(f)['G_ema'].to(device) # type: ignore
 
@@ -120,7 +120,7 @@ def generate_images(
     rnd = np.random.RandomState(seed)
     fnames = [os.path.join(indir, fname) for fname in os.listdir(indir) if fname.endswith(".npy")]
     for fname in tqdm(fnames):
-        cond_im = np.load(fname)
+        cond_im = cv2.resize(np.load(fname), (1024, 1024))
         cond_im = torch.from_numpy(cond_im).to(device).permute(2, 0, 1).unsqueeze(0)
         #z = torch.from_numpy(rnd.randn(1, G.z_dim)).to(device)
         z = torch.randn([1, G.z_dim], device=device)

@@ -228,8 +228,9 @@ class ImageFolderDataset(Dataset):
     def _load_raw_image(self, idx):
         fname = self._image_fnames[idx]
         image = np.load(fname)
-        if image.max() > 1.5:
-            image = image / 255 * 3 - 1.5
+        if image.max() > 2:
+            image = image / 127.5 - 1
+        image = image.clip(-1, 1)
         image = cv2.resize(image, (1024, 1024))
         image = image.transpose(2, 0, 1) # HWC => CHW
         return image
@@ -238,8 +239,9 @@ class ImageFolderDataset(Dataset):
     def _load_coarse_image(self, idx):
         fname = self.coarse_fnames[idx]
         image = np.load(fname)
-        if image.max() > 1.5:
-            image = image / 255 * 3 - 1.5
+        if image.max() > 2:
+            image = image / 127.5 - 1
+        image = image.clip(-1, 1)
         image = cv2.resize(image, (1024, 1024))
         image = image.transpose(2, 0, 1) # HWC => CHW
         return image

@@ -187,6 +187,107 @@ def lap(img, lap_kernel):
     return img 
 
 
+# def compute_feature_stats_for_dataset(opts, detector_url, detector_kwargs, rel_lo=0, rel_hi=1, batch_size=64, data_loader_kwargs=None, max_items=None, **stats_kwargs):
+#     dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
+#     if data_loader_kwargs is None:
+#         data_loader_kwargs = dict(pin_memory=True, num_workers=3, prefetch_factor=2)
+
+
+#     # Initialize.
+#     num_items = len(dataset)
+#     if max_items is not None:
+#         num_items = min(num_items, max_items)
+#     stats_im = FeatureStats(max_items=num_items, **stats_kwargs)
+#     stats_grad = FeatureStats(max_items=num_items, **stats_kwargs)
+#     progress = opts.progress.sub(tag='dataset features', num_items=num_items, rel_lo=rel_lo, rel_hi=rel_hi)
+#     detector = get_feature_detector(url=detector_url, device=opts.device, num_gpus=opts.num_gpus, rank=opts.rank, verbose=progress.verbose)
+#     lap_kernel = torch.tensor([[0, 1, 0], [1, -2, 0], [0, 0, 0]], dtype=torch.float32, requires_grad=False).unsqueeze(0).unsqueeze(0).to(opts.device)
+
+#     # Main loop.
+#     item_subset = [(i * opts.num_gpus + opts.rank) % num_items for i in range((num_items - 1) // opts.num_gpus + 1)]
+#     for images, _, _ in torch.utils.data.DataLoader(dataset=dataset, sampler=item_subset, batch_size=batch_size, **data_loader_kwargs):
+#         if images.shape[1] == 1:
+#             images = images.repeat([1, 3, 1, 1])
+#         images = images.to(opts.device)
+#         grad_img = lap(images, lap_kernel)
+#         images = (images * 127.5 + 128).clamp(0, 255)
+#         im_features = detector(images, **detector_kwargs)
+#         grad_features = detector(grad_img, **detector_kwargs)
+        
+#         stats_im.append_torch(im_features, num_gpus=opts.num_gpus, rank=opts.rank)
+#         stats_grad.append_torch(grad_features, num_gpus=opts.num_gpus, rank=opts.rank)
+#         progress.update(stats_im.num_items)
+#         progress.update(stats_grad.num_items)
+
+
+#     return stats_im, stats_grad
+
+# #----------------------------------------------------------------------------
+
+# def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel_lo=0, rel_hi=1, batch_size=64, batch_gen=None, jit=False, **stats_kwargs):
+
+    
+#     if batch_gen is None:
+#         batch_gen = min(batch_size, 4)
+#     assert batch_size % batch_gen == 0
+
+#     # Setup generator and load labels.
+#     G = copy.deepcopy(opts.G).eval().requires_grad_(False).to(opts.device)
+#     dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
+
+#     # Image generation func.
+#     def run_generator(z, cond_im, c):
+#         img = G(z=z, cond_im=cond_im, c=c, **opts.G_kwargs)
+#         grad = lap(img, lap_kernel)
+#         img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
+#         return img, grad
+
+#     # JIT.
+#     if jit:
+#         z = torch.zeros([batch_gen, G.z_dim], device=opts.device)
+#         c = torch.zeros([batch_gen, G.c_dim], device=opts.device)
+#         cond_im = torch.zeros([batch_gen, G.img_channels, G.img_resolution,  G.img_resolution], device=opts.device)
+#         run_generator = torch.jit.trace(run_generator, [z, cond_im, c], check_trace=False)
+
+
+#     lap_kernel = torch.tensor([[0, 1, 0], [1, -2, 0], [0, 0, 0]], dtype=torch.float32, requires_grad=False).unsqueeze(0).unsqueeze(0).to(opts.device)
+#     # Initialize.
+#     stats_im = FeatureStats(**stats_kwargs)
+#     stats_grad = FeatureStats(**stats_kwargs)
+#     assert stats_im.max_items is not None
+#     progress = opts.progress.sub(tag='generator features', num_items=stats_im.max_items, rel_lo=rel_lo, rel_hi=rel_hi)
+#     detector = get_feature_detector(url=detector_url, device=opts.device, num_gpus=opts.num_gpus, rank=opts.rank, verbose=progress.verbose)
+
+#     # Main loop.
+#     while not stats_im.is_full():
+#         images = []
+#         grads = []
+#         for _i in range(batch_size // batch_gen):
+#             z = torch.randn([batch_gen, G.z_dim], device=opts.device)
+#             c = [dataset.get_label(np.random.randint(len(dataset))) for _i in range(batch_gen)]
+#             c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
+#             cond_im = [dataset._load_coarse_image(np.random.randint(len(dataset))) for _i in range(batch_gen)]
+#             cond_im = torch.from_numpy(np.stack(cond_im)).pin_memory().to(opts.device)
+#             img, grad = run_generator(z, cond_im, c)
+#             images.append(img)
+#             grads.append(grad)
+        
+#         images = torch.cat(images)
+#         grads = torch.cat(grads)
+
+
+        
+#         im_features = detector(images, **detector_kwargs)
+#         grad_features = detector(grads, **detector_kwargs)
+#         stats_im.append_torch(im_features, num_gpus=opts.num_gpus, rank=opts.rank)
+#         stats_grad.append_torch(grad_features, num_gpus=opts.num_gpus, rank=opts.rank)
+#         progress.update(stats_im.num_items)
+#     return stats_im, stats_grad
+
+#----------------------------------------------------------------------------
+
+
+
 def compute_feature_stats_for_dataset(opts, detector_url, detector_kwargs, rel_lo=0, rel_hi=1, batch_size=64, data_loader_kwargs=None, max_items=None, **stats_kwargs):
     dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
     if data_loader_kwargs is None:
@@ -197,30 +298,31 @@ def compute_feature_stats_for_dataset(opts, detector_url, detector_kwargs, rel_l
     num_items = len(dataset)
     if max_items is not None:
         num_items = min(num_items, max_items)
+    stats_deform = FeatureStats(max_items=num_items, **stats_kwargs)
     stats_im = FeatureStats(max_items=num_items, **stats_kwargs)
-    stats_grad = FeatureStats(max_items=num_items, **stats_kwargs)
     progress = opts.progress.sub(tag='dataset features', num_items=num_items, rel_lo=rel_lo, rel_hi=rel_hi)
     detector = get_feature_detector(url=detector_url, device=opts.device, num_gpus=opts.num_gpus, rank=opts.rank, verbose=progress.verbose)
-    lap_kernel = torch.tensor([[0, 1, 0], [1, -2, 0], [0, 0, 0]], dtype=torch.float32, requires_grad=False).unsqueeze(0).unsqueeze(0).to(opts.device)
 
     # Main loop.
     item_subset = [(i * opts.num_gpus + opts.rank) % num_items for i in range((num_items - 1) // opts.num_gpus + 1)]
-    for images, _, _ in torch.utils.data.DataLoader(dataset=dataset, sampler=item_subset, batch_size=batch_size, **data_loader_kwargs):
+    for images, _, conds in torch.utils.data.DataLoader(dataset=dataset, sampler=item_subset, batch_size=batch_size, **data_loader_kwargs):
         if images.shape[1] == 1:
             images = images.repeat([1, 3, 1, 1])
         images = images.to(opts.device)
-        grad_img = lap(images, lap_kernel)
+        conds = conds.to(opts.device)
         images = (images * 127.5 + 128).clamp(0, 255)
+        conds = (conds * 127.5 + 128).clamp(0, 255)
+        deform = images - conds
+        deform_features = detector(deform, **detector_kwargs)
         im_features = detector(images, **detector_kwargs)
-        grad_features = detector(grad_img, **detector_kwargs)
         
+        stats_deform.append_torch(deform_features, num_gpus=opts.num_gpus, rank=opts.rank)
         stats_im.append_torch(im_features, num_gpus=opts.num_gpus, rank=opts.rank)
-        stats_grad.append_torch(grad_features, num_gpus=opts.num_gpus, rank=opts.rank)
+        progress.update(stats_deform.num_items)
         progress.update(stats_im.num_items)
-        progress.update(stats_grad.num_items)
 
 
-    return stats_im, stats_grad
+    return stats_deform, stats_im
 
 #----------------------------------------------------------------------------
 
@@ -237,10 +339,12 @@ def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel
 
     # Image generation func.
     def run_generator(z, cond_im, c):
-        img = G(z=z, cond_im=cond_im, c=c, **opts.G_kwargs)
-        grad = lap(img, lap_kernel)
+        deform = G(z=z, cond_im=cond_im, c=c, **opts.G_kwargs)
+        img = deform + cond_im
+
+        deform = (deform * 127.5 + 128).clamp(0, 255).to(torch.uint8)
         img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-        return img, grad
+        return deform, img
 
     # JIT.
     if jit:
@@ -252,8 +356,8 @@ def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel
 
     lap_kernel = torch.tensor([[0, 1, 0], [1, -2, 0], [0, 0, 0]], dtype=torch.float32, requires_grad=False).unsqueeze(0).unsqueeze(0).to(opts.device)
     # Initialize.
+    stats_deform = FeatureStats(**stats_kwargs)
     stats_im = FeatureStats(**stats_kwargs)
-    stats_grad = FeatureStats(**stats_kwargs)
     assert stats_im.max_items is not None
     progress = opts.progress.sub(tag='generator features', num_items=stats_im.max_items, rel_lo=rel_lo, rel_hi=rel_hi)
     detector = get_feature_detector(url=detector_url, device=opts.device, num_gpus=opts.num_gpus, rank=opts.rank, verbose=progress.verbose)
@@ -261,27 +365,28 @@ def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel
     # Main loop.
     while not stats_im.is_full():
         images = []
-        grads = []
+        deforms = []
         for _i in range(batch_size // batch_gen):
             z = torch.randn([batch_gen, G.z_dim], device=opts.device)
             c = [dataset.get_label(np.random.randint(len(dataset))) for _i in range(batch_gen)]
             c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
             cond_im = [dataset._load_coarse_image(np.random.randint(len(dataset))) for _i in range(batch_gen)]
             cond_im = torch.from_numpy(np.stack(cond_im)).pin_memory().to(opts.device)
-            img, grad = run_generator(z, cond_im, c)
+            deform, img = run_generator(z, cond_im, c)
+            
+            deforms.append(deform)
             images.append(img)
-            grads.append(grad)
+            
         
+        deforms = torch.cat(deforms)
         images = torch.cat(images)
-        grads = torch.cat(grads)
+        
 
 
         
         im_features = detector(images, **detector_kwargs)
-        grad_features = detector(grads, **detector_kwargs)
+        deform_features = detector(deforms, **detector_kwargs)
         stats_im.append_torch(im_features, num_gpus=opts.num_gpus, rank=opts.rank)
-        stats_grad.append_torch(grad_features, num_gpus=opts.num_gpus, rank=opts.rank)
+        stats_deform.append_torch(deform_features, num_gpus=opts.num_gpus, rank=opts.rank)
         progress.update(stats_im.num_items)
-    return stats_im, stats_grad
-
-#----------------------------------------------------------------------------
+    return stats_deform, stats_im

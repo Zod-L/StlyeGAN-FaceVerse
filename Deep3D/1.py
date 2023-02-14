@@ -8,16 +8,7 @@ import cv2
 import os
 import shutil
 
-bfm_model = loadmat("Deep3D/BFM/fuse_model_front_improve.mat")
-for k,v in bfm_model.items():
-    try:
-        print(f"{k} : {v.shape}")
-    except:
-        pass
-meanshape = bfm_model["meanshape"].reshape(-1, 3)
-translate = np.array([(meanshape[:, 0].max()+meanshape[:, 0].min())/2, (meanshape[:, 1].max()+meanshape[:, 1].min())/2, (meanshape[:, 2].max()+meanshape[:, 2].min())/2])
-print((meanshape - translate).min())
-print((meanshape - translate).max())
+
 
 # # print(bfm_model["eyebrow_mask"].dtype)
 # real_shape = bfm_model["meanshape"].reshape(-1, 3)
@@ -47,5 +38,21 @@ print((meanshape - translate).max())
 # save_obj_mesh_with_rgb("mean_rmtoonme.obj", shape.reshape(-1, 3), tri-1, tex)
 
 
+im_path = "/home/liyi/data/faceverse_data/train/im"
+lm_path = "/home/liyi/data/faceverse_data/train/im/landmarks"
+mask_path = "/home/liyi/data/faceverse_data/train/im/mask"
+fnames = [fname for fname in os.listdir(mask_path)]
 
+
+with open("Deep3D/datalist/real/masks.txt", "w") as fh:
+    for fname in fnames:
+        fh.write(os.path.join(mask_path, fname) + "\n")
+
+with open("Deep3D/datalist/real/images.txt", "w") as fh:
+    for fname in fnames:
+        fh.write(os.path.join(im_path, fname) + "\n")
+
+with open("Deep3D/datalist/real/landmarks.txt", "w") as fh:
+    for fname in fnames:
+        fh.write(os.path.join(lm_path, fname.split(".")[-2] + ".txt") + "\n")
 

@@ -231,23 +231,21 @@ def training_loop(
         print('Exporting sample images...')
         lap_kernel = torch.tensor([[0, 1, 0], [1, -2, 0], [0, 0, 0]], dtype=torch.float32, requires_grad=False).unsqueeze(0).unsqueeze(0).to(rank)
         grid_size, images, labels, cond_images = setup_snapshot_image_grid(training_set=training_set)
-        save_image_grid(images, os.path.join(run_dir, 'real_im.png'), drange=[-1.5,1.5], grid_size=grid_size)
-        # images = torch.tensor(images, device=rank)
-        # grad = lap(images, lap_kernel).cpu().numpy()
-        # save_image_grid(grad, os.path.join(run_dir, 'real_grad.png'), drange=[-0.05,0.05], grid_size=grid_size)
+        save_image_grid(images, os.path.join(run_dir, 'real_im.png'), drange=[-1,1], grid_size=grid_size)
+        save_image_grid(images-cond_images, os.path.join(run_dir, 'real_deform.png'), drange=[-1,1], grid_size=grid_size)
 
         grid_z = torch.randn([labels.shape[0], G.z_dim], device=device).split(batch_gpu)
         grid_c = torch.from_numpy(labels).to(device).split(batch_gpu)
         cond_images = torch.from_numpy(cond_images).to(device).split(batch_gpu)
         images = []
-        grads = []
+        deforms = []
         for z, c, cond_im in zip(grid_z, grid_c, cond_images):
-            im = G_ema(z=z, c=c, cond_im=cond_im, noise_mode='const')
-            grad = lap(im, lap_kernel)
+            deform = G_ema(z=z, c=c, cond_im=cond_im, noise_mode='const')
+            im = deform + cond_im
             images.append(im)
-            grads.append(grad)
-        save_image_grid(torch.cat(images).cpu().numpy(), os.path.join(run_dir, 'im_init.png'), drange=[-1.5,1.5], grid_size=grid_size)
-        #save_image_grid(torch.cat(grads).cpu().numpy(), os.path.join(run_dir, 'grad_init.png'), drange=[-0.05,0.05], grid_size=grid_size)
+            deforms.append(deform)
+        save_image_grid(torch.cat(images).cpu().numpy(), os.path.join(run_dir, 'im_init.png'), drange=[-1,1], grid_size=grid_size)
+        save_image_grid(torch.cat(deforms).cpu().numpy(), os.path.join(run_dir, 'deform_init.png'), drange=[-1,1], grid_size=grid_size)
 
     # Initialize logs.
     if rank == 0:
@@ -373,14 +371,14 @@ def training_loop(
         # Save image snapshot.
         if (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
             images = []
-            grads = []
+            deforms = []
             for z, c, cond_im in zip(grid_z, grid_c, cond_images):
-                im = G_ema(z=z, c=c, cond_im=cond_im, noise_mode='const')
-                grad = lap(im, lap_kernel)
+                deform = G_ema(z=z, c=c, cond_im=cond_im, noise_mode='const')
+                im = deform + cond_im
                 images.append(im)
-                grads.append(grad)
-            save_image_grid(torch.cat(images).cpu().numpy(), os.path.join(run_dir, f'im{cur_nimg//1000:06d}.png'), drange=[-1.5,1.5], grid_size=grid_size)
-            #save_image_grid(torch.cat(grads).cpu().numpy(), os.path.join(run_dir, f'grad{cur_nimg//1000:06d}.png'), drange=[-0.05,0.05], grid_size=grid_size)
+                deforms.append(deform)
+            save_image_grid(torch.cat(images).cpu().numpy(), os.path.join(run_dir, 'im_init.png'), drange=[-1,1], grid_size=grid_size)
+            save_image_grid(torch.cat(deforms).cpu().numpy(), os.path.join(run_dir, 'deform_init.png'), drange=[-1,1], grid_size=grid_size)
 
         # Save network snapshot.
         snapshot_pkl = None

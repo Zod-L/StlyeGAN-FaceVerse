@@ -164,14 +164,13 @@ class FaceReconModel(BaseModel):
         self.facemodel.to(self.device)
         self.fuse_tex.to(self.device)
         self.translate = self.translate.to(self.device)
-        self.pred_vertex, pred_tex, im_tex, pred_color, im_color, self.pred_lm, face_norm_roted, gamma, pred_shape = \
+        self.pred_vertex, self.pred_tex, self.pred_color, self.pred_lm = \
             self.facemodel.compute_for_render(output_coeff, self.input_img)
+        
+        self.pred_color = self.pred_tex
 
 
-        self.fit_tex = pred_tex
-        self.pred_tex = self.fuse_tex(torch.cat((pred_tex, self.pred_vertex), dim=-1), torch.cat((im_tex, self.pred_vertex), dim=-1)) if self.tex_from_im else pred_tex
 
-        self.pred_color = self.facemodel.compute_color(self.pred_tex, face_norm_roted, gamma)
 
 
         self.pred_mask, _, self.pred_face = self.renderer(
@@ -181,8 +180,11 @@ class FaceReconModel(BaseModel):
 
 
         self.pred_coeffs_dict = self.facemodel.split_coeff(output_coeff)
+        pred_vertex = self.pred_vertex.clone()
+        pred_vertex[..., -1] = 10 - pred_vertex[..., -1]
+        #self.uv_shape, self.uv_tex = uv_expand((self.pred_vertex.squeeze()-self.translate).cpu().numpy(), self.pred_tex.squeeze().cpu().numpy())
+        self.uv_shape, self.uv_tex = uv_expand(pred_vertex.squeeze().cpu().numpy(), self.pred_tex.squeeze().cpu().numpy())
 
-        self.uv_shape, self.uv_tex = uv_expand((pred_shape.squeeze()-self.translate).cpu().numpy(), self.pred_tex.squeeze().cpu().numpy())
 
 
 
@@ -215,7 +217,6 @@ class FaceReconModel(BaseModel):
         self.loss_reflc = self.opt.w_reflc * self.compute_reflc_loss(self.pred_tex, self.facemodel.skin_mask)
 
 
-        self.loss_penalty = self.opt.w_penalty * torch.nn.functional.mse_loss(self.pred_tex, self.fit_tex)
 
         self.loss_all = self.loss_feat + self.loss_color + self.loss_reg + self.loss_gamma \
                         + self.loss_lm + self.loss_reflc + self.loss_penalty

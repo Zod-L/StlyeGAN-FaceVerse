@@ -66,7 +66,7 @@ class StyleGAN2Loss(Loss):
 
     def run_D(self, img, coarse_img, c, name, sync):
         if self.augment_pipe is not None:
-            temp = torch.cat([img, coarse_img], axis=2)
+            temp = torch.cat((img, coarse_img), dim=1)
             temp = self.augment_pipe(temp)
             img = temp[:,:,:512,:]
         with misc.ddp_sync(self.D, sync):

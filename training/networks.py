@@ -297,7 +297,7 @@ class SynthesisLayer(torch.nn.Module):
         resolution,                     # Resolution of this layer.
         kernel_size     = 3,            # Convolution kernel size.
         up              = 1,            # Integer upsampling factor.
-        use_noise       = True,         # Enable noise input?
+        use_noise       = False,         # Enable noise input?
         activation      = 'lrelu',      # Activation function: 'relu', 'lrelu', etc.
         resample_filter = [1,3,3,1],    # Low-pass filter to apply when resampling activations.
         conv_clamp      = None,         # Clamp the output of convolution layers to +-X, None = disable clamping.
@@ -887,6 +887,49 @@ class Discriminator(torch.nn.Module):
 #----------------------------------------------------------------------------
 
 
+# class double_dis(torch.nn.Module):
+#     def __init__(self, **kwargs):
+#         super().__init__()
+#         self.lap_dis = None
+#         if kwargs["lap_weight"] != 0:
+#             kwargs.pop("lap_weight")
+#             self.lap_dis = Discriminator(**kwargs)
+#         else:
+#             kwargs.pop("lap_weight")
+
+
+#         kwargs["img_channels"] *= 2
+#         self.im_dis = Discriminator(**kwargs)
+        
+
+#         #self.register_buffer("lap_kernel", torch.tensor([[0, 1, 0], [1, -4, 1], [0, 1, 0]], dtype=torch.float32, requires_grad=False))
+#         self.register_buffer("lap_kernel", torch.tensor([[0, 1, 0], [1, -2, 0], [0, 0, 0]], dtype=torch.float32, requires_grad=False).unsqueeze(0).unsqueeze(0))
+
+
+#         # mask = Image.open("uv_mesh/mask.png")
+#         # mask = np.asarray(mask)[:, :, :1]
+#         # mask = torch.tensor((mask != 0), dtype=torch.float32, requires_grad=False).permute(2, 0, 1).unsqueeze(0)
+#         # self.register_buffer("mask", mask)
+
+
+
+#     def lap(self, img):
+#         B, C, H, W = img.shape
+#         img = img.reshape(B * C, 1, H, W)
+#         img = torch.nn.functional.conv2d(img, self.lap_kernel, padding=1)
+#         img = img.reshape(B, C, H, W).clamp(-0.05, 0.05)
+#         img = (img + 0.05) / 0.1
+#         img = img * 3 - 1.5
+#         return img        
+
+#     def forward(self, img, c, name, **block_kwargs):
+#         im_score = self.im_dis(img, c, **block_kwargs)
+#         img = self.lap(img[:, :3, :, :])
+#         lap_score = self.lap_dis(img, c, **block_kwargs) if self.lap_dis is not None else im_score
+#         return [im_score, lap_score]
+
+
+
 class double_dis(torch.nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
@@ -915,15 +958,18 @@ class double_dis(torch.nn.Module):
 
     def lap(self, img):
         B, C, H, W = img.shape
+        img = (img + 1) * 1.5 - 1.5
         img = img.reshape(B * C, 1, H, W)
         img = torch.nn.functional.conv2d(img, self.lap_kernel, padding=1)
         img = img.reshape(B, C, H, W).clamp(-0.05, 0.05)
         img = (img + 0.05) / 0.1
-        img = img * 3 - 1.5
+        img = img * 2 - 1
         return img        
 
     def forward(self, img, c, name, **block_kwargs):
+        grad = self.lap(img[:, :3, :, :])
+        img = torch.cat((img[:, :3, :, :]-img[:, 3:, :, :], img[:, 3:, :, :]), dim=1)
         im_score = self.im_dis(img, c, **block_kwargs)
-        img = self.lap(img[:, :3, :, :])
-        lap_score = self.lap_dis(img, c, **block_kwargs) if self.lap_dis is not None else im_score
+        lap_score = self.lap_dis(grad, c, **block_kwargs) if self.lap_dis is not None else im_score
+        
         return [im_score, lap_score]

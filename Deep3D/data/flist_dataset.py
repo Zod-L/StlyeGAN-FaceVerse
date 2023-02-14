@@ -56,6 +56,7 @@ class FlistDataset(BaseDataset):
         msk_names = default_flist_reader(opt.flist)
         self.msk_paths = [os.path.join(opt.data_root, i) for i in msk_names]
 
+
         self.size = len(self.msk_paths) 
         self.opt = opt
         
